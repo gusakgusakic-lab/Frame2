@@ -153,21 +153,19 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
     <script>
-        /* =========================================
-           1. НАСТРОЙКИ FIREBASE (ВСТАВЬ СВОИ ДАННЫЕ)
-           ========================================= */
-        const firebaseConfig = { 
-            apiKey: "AIzaSyCqKZrJNcy-4hgZlkXbtLjBfTxY5I4-N7o"
+        /* Вставь это в свой index.html вместо старого блока firebaseConfig */
+        const firebaseConfig = {
+            apiKey: "AIzaSyCqKZrJNcy-4hgZlkXbtLjBfTxY5I4-N7o",
             authDomain: "framework-5a0bf.firebaseapp.com",
             databaseURL: "https://framework-5a0bf-default-rtdb.europe-west1.firebasedatabase.app",
             projectId: "framework-5a0bf",
-            storageBucket: "framework-5a0bf.appspot.com",
+            storageBucket: "framework-5a0bf.firebasestorage.app",
             messagingSenderId: "101596985169",
             appId: "1:101596985169:web:3474135d7496f5fa314570"
         };
         
+        // Инициализация для старой версии (v8), которая уже у тебя подключена в коде
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
 
         /* =========================================
            2. ПЕРЕМЕННЫЕ И ДАННЫЕ
