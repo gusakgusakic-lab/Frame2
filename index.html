@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Messenger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Темная тема в стиле CS2 */
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .bg-dark { background-color: #1e1e24; }
+        .bg-darker { background-color: #16161a; }
+        .accent { background-color: #fca311; } /* Оранжевый акцент */
+        .accent:hover { background-color: #e59400; }
+        
+        /* Стили скроллбара */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4a4a52; border-radius: 10px; }
+        
+        .emoji-btn { transition: transform 0.1s; }
+        .emoji-btn:hover { transform: scale(1.2); }
+        .emoji-selected { background-color: #fca311; border-radius: 50%; }
+        
+        /* Стили сообщений */
+        .msg-bubble { max-width: 75%; padding: 8px 12px; border-radius: 12px; word-wrap: break-word; position: relative;}
+        .msg-mine { background-color: #2b2b36; border-bottom-right-radius: 2px; margin-left: auto; }
+        .msg-theirs { background-color: #3f3f4e; border-bottom-left-radius: 2px; margin-right: auto;}
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-darker">
+        <div class="bg-dark p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+            <h2 id="auth-title" class="text-2xl font-bold text-center mb-6">Вход в систему</h2>
+            
+            <div id="error-msg" class="hidden bg-red-500 text-white p-2 rounded mb-4 text-sm text-center"></div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Номер телефона</label>
+                    <input type="text" id="phone-input" placeholder="Например: 79991234567" class="w-full bg-gray-800 text-white p-3 rounded outline-none focus:ring-2 focus:ring-yellow-500">
+                </div>
+                
+                <div id="nickname-block" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Никнейм</label>
+                    <input type="text" id="nickname-input" placeholder="Твой ник" class="w-full bg-gray-800 text-white p-3 rounded outline-none focus:ring-2 focus:ring-yellow-500">
+                </div>
+
+                <div id="emoji-block" class="hidden">
+                    <label class="block text-sm text-gray-400 mb-1">Выбери аватар</label>
+                    <div id="emoji-picker" class="flex flex-wrap gap-2 h-32 overflow-y-auto bg-gray-800 p-2 rounded">
+                        </div>
+                </div>
+
+                <div class="relative">
+                    <label class="block text-sm text-gray-400 mb-1">Пароль</label>
+                    <input type="password" id="password-input" placeholder="Пароль" class="w-full bg-gray-800 text-white p-3 rounded outline-none focus:ring-2 focus:ring-yellow-500 pr-10">
+                    <button onclick="togglePassword()" class="absolute right-3 top-9 text-gray-400 hover:text-white">
+                        <i id="eye-icon" class="fas fa-eye"></i>
+                    </button>
+                </div>
+
+                <button id="auth-btn" onclick="handleAuth()" class="w-full accent text-gray-900 font-bold p-3 rounded mt-4">Войти</button>
+            </div>
+
+            <div class="mt-4 text-center">
+                <button onclick="toggleAuthMode()" class="text-sm text-gray-400 hover:text-white underline">
+                    <span id="auth-toggle-text">Нет аккаунта? Зарегистрироваться</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-screen" class="hidden w-full h-full flex">
+        
+        <div class="w-1/3 max-w-sm bg-dark border-r border-gray-700 flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center bg-darker">
+                <div class="flex items-center gap-3">
+                    <div id="my-avatar" class="text-3xl bg-gray-800 rounded-full w-12 h-12 flex items-center justify-center">👤</div>
+                    <div>
+                        <div id="my-nickname" class="font-bold">Загрузка...</div>
+                        <div id="my-phone" class="text-xs text-gray-400"></div>
+                    </div>
+                </div>
+                <button onclick="logout()" class="text-red-400 hover:text-red-300"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+
+            <div class="p-3 flex gap-2">
+                <button onclick="showModal('new-chat-modal')" class="flex-1 bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm transition">Новый чат</button>
+                <button onclick="showModal('new-group-modal'); loadUsersForGroup()" class="flex-1 bg-gray-700 hover:bg-gray-600 p-2 rounded text-sm transition">Новая группа</button>
+            </div>
+
+            <div id="chats-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                </div>
+        </div>
+
+        <div class="flex-1 flex flex-col bg-darker relative">
+            
+            <div id="chat-header" class="h-16 border-b border-gray-700 flex items-center p-4 bg-dark hidden">
+                <div id="current-chat-avatar" class="text-2xl mr-3">💬</div>
+                <div>
+                    <div id="current-chat-name" class="font-bold">Название чата</div>
+                    <div id="current-chat-info" class="text-xs text-gray-400">Участники...</div>
+                </div>
+            </div>
+
+            <div id="messages-area" class="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+                <div class="h-full flex items-center justify-center text-gray-500">Выберите чат слева, чтобы начать общение</div>
+            </div>
+
+            <div id="input-area" class="p-4 bg-dark border-t border-gray-700 hidden">
+                <div class="flex gap-2">
+                    <input type="text" id="message-input" placeholder="Написать сообщение..." class="flex-1 bg-gray-800 text-white p-3 rounded-full outline-none focus:ring-1 focus:ring-yellow-500" onkeypress="if(event.key === 'Enter') sendMessage()">
+                    <button id="send-btn" onclick="sendMessage()" class="accent w-12 h-12 rounded-full text-gray-900 flex items-center justify-center text-lg hover:scale-105 transition">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="new-chat-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+        <div class="bg-dark p-6 rounded-xl shadow-lg w-96 border border-gray-700">
+            <h3 class="text-lg font-bold mb-4">Начать новый чат</h3>
+            <input type="text" id="new-chat-phone" placeholder="Номер телефона друга" class="w-full bg-gray-800 text-white p-3 rounded mb-4">
+            <div class="flex justify-end gap-2">
+                <button onclick="hideModal('new-chat-modal')" class="px-4 py-2 text-gray-400 hover:text-white">Отмена</button>
+                <button onclick="createDirectChat()" class="px-4 py-2 accent text-gray-900 rounded font-bold">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="new-group-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+        <div class="bg-dark p-6 rounded-xl shadow-lg w-full max-w-md border border-gray-700 flex flex-col h-3/4">
+            <h3 class="text-lg font-bold mb-4">Создать группу (до 20 чел.)</h3>
+            <input type="text" id="new-group-name" placeholder="Название группы" class="w-full bg-gray-800 text-white p-3 rounded mb-4 flex-shrink-0">
+            <div class="text-sm text-gray-400 mb-2">Выберите участников: <span id="group-count">0</span>/19</div>
+            
+            <div id="group-users-list" class="flex-1 overflow-y-auto space-y-2 mb-4 pr-2">
+                </div>
+
+            <div class="flex justify-end gap-2 flex-shrink-0">
+                <button onclick="hideModal('new-group-modal')" class="px-4 py-2 text-gray-400 hover:text-white">Отмена</button>
+                <button onclick="createGroupChat()" class="px-4 py-2 accent text-gray-900 rounded font-bold">Создать группу</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        /* =========================================
+           1. НАСТРОЙКИ FIREBASE (ВСТАВЬ СВОИ ДАННЫЕ)
+           ========================================= */
+        const firebaseConfig = { 
+            apiKey: "AIzaSyCqKZrJNcy-4hgZlkXbtLjBfTxY5I4-N7o"
+            authDomain: "framework-5a0bf.firebaseapp.com",
+            databaseURL: "https://framework-5a0bf-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "framework-5a0bf",
+            storageBucket: "framework-5a0bf.appspot.com",
+            messagingSenderId: "101596985169",
+            appId: "1:101596985169:web:3474135d7496f5fa314570"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        /* =========================================
+           2. ПЕРЕМЕННЫЕ И ДАННЫЕ
+           ========================================= */
+        let isLoginMode = true;
+        let currentUser = null;
+        let currentChatId = null;
+        let usersCache = {}; // Кеш всех пользователей для быстрого доступа
+        let messagesListener = null;
+
+        const emojis = ['😀','😃','🤣','😇','🥰','🤑','🤔','🤐','🥶','🥵','🥸','🤮','🥳','😈','🤖','💩','🤡','😺','🖕','✌️','👀','🍊','🍉','🍎','🥝','🍍','🍌','🍓','🍒','🍑','🍟','🍕','🍔','🌍','🧭','🏠','✨','🎉','🎁','☢️','☯️','♈','♎','🔆','🔱','♀️','♂️','⚕️','♾️','✔️','🔰','♻️','🇩🇪','🇲🇬','🇵🇱','🇷🇴','🇸🇪','🇹🇳','🇽🇰','🇸🇩','🇲🇰','🇱🇹','🇬🇪','🇦🇪'];
+        let selectedEmoji = '😀';
+
+        /* =========================================
+           3. ИНИЦИАЛИЗАЦИЯ И ИНТЕРФЕЙС
+           ========================================= */
+        window.onload = () => {
+            renderEmojis();
+            checkSession();
+        };
+
+        function showError(msg) {
+            const el = document.getElementById('error-msg');
+            el.innerText = msg;
+            el.classList.remove('hidden');
+            setTimeout(() => el.classList.add('hidden'), 3000);
+        }
+
+        function togglePassword() {
+            const input = document.getElementById('password-input');
+            const icon = document.getElementById('eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? 'Вход в систему' : 'Регистрация';
+            document.getElementById('auth-btn').innerText = isLoginMode ? 'Войти' : 'Создать аккаунт';
+            document.getElementById('auth-toggle-text').innerText = isLoginMode ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти';
+            
+            document.getElementById('nickname-block').style.display = isLoginMode ? 'none' : 'block';
+            document.getElementById('emoji-block').style.display = isLoginMode ? 'none' : 'block';
+        }
+
+        function renderEmojis() {
+            const container = document.getElementById('emoji-picker');
+            container.innerHTML = emojis.map(e => `
+                <div class="text-2xl cursor-pointer p-1 emoji-btn ${e === selectedEmoji ? 'emoji-selected' : ''}" 
+                     onclick="selectEmoji('${e}', this)">${e}</div>
+            `).join('');
+        }
+
+        function selectEmoji(e, element) {
+            selectedEmoji = e;
+            document.querySelectorAll('.emoji-btn').forEach(btn => btn.classList.remove('emoji-selected'));
+            element.classList.add('emoji-selected');
+        }
+
+        /* =========================================
+           4. АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ
+           ========================================= */
+        function checkSession() {
+            const saved = localStorage.getItem('messenger_user');
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                startApp();
+            }
+        }
+
+        async function handleAuth() {
+            const phone = document.getElementById('phone-input').value.trim();
+            const password = document.getElementById('password-input').value.trim();
+
+            if (!phone || !password) return showError('Заполните все поля');
+
+            const btn = document.getElementById('auth-btn');
+            btn.disabled = true;
+            btn.innerText = 'Загрузка...';
+
+            try {
+                if (isLoginMode) {
+                    // ВХОД
+                    const snapshot = await db.ref('users/' + phone).once('value');
+                    if (!snapshot.exists()) {
+                        btn.disabled = false; btn.innerText = 'Войти';
+                        return showError('Пользователь не найден');
+                    }
+                    const userData = snapshot.val();
+                    if (userData.password !== password) {
+                        btn.disabled = false; btn.innerText = 'Войти';
+                        return showError('Неверный пароль');
+                    }
+                    currentUser = userData;
+                } else {
+                    // РЕГИСТРАЦИЯ
+                    const nickname = document.getElementById('nickname-input').value.trim();
+                    if (!nickname) {
+                        btn.disabled = false; btn.innerText = 'Создать аккаунт';
+                        return showError('Введите никнейм');
+                    }
+                    
+                    const snapshot = await db.ref('users/' + phone).once('value');
+                    if (snapshot.exists()) {
+                        btn.disabled = false; btn.innerText = 'Создать аккаунт';
+                        return showError('Этот номер уже зарегистрирован');
+                    }
+
+                    currentUser = { phone, nickname, password, emoji: selectedEmoji };
+                    await db.ref('users/' + phone).set(currentUser);
+                }
+
+                localStorage.setItem('messenger_user', JSON.stringify(currentUser));
+                startApp();
+            } catch (e) {
+                showError('Ошибка сети');
+                btn.disabled = false;
+                btn.innerText = isLoginMode ? 'Войти' : 'Создать аккаунт';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('messenger_user');
+            location.reload();
+        }
+
+        /* =========================================
+           5. РАБОТА С ПРИЛОЖЕНИЕМ (ЧАТЫ)
+           ========================================= */
+        async function startApp() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+            
+            document.getElementById('my-avatar').innerText = currentUser.emoji;
+            document.getElementById('my-nickname').innerText = currentUser.nickname;
+            document.getElementById('my-phone').innerText = '+' + currentUser.phone;
+
+            // Загружаем всех пользователей в кеш для отображения аватарок и имен
+            db.ref('users').on('value', snap => {
+                if(snap.exists()) usersCache = snap.val();
+                loadChats(); // Перезагружаем список чатов с новыми именами
+            });
+        }
+
+        // Загрузка списка чатов, в которых мы состоим
+        function loadChats() {
+            db.ref('chats').on('value', snap => {
+                const listEl = document.getElementById('chats-list');
+                listEl.innerHTML = '';
+                if (!snap.exists()) return;
+
+                const chats = snap.val();
+                for (let chatId in chats) {
+                    const chat = chats[chatId];
+                    // Проверяем, состоим ли мы в этом чате
+                    if (chat.participants && chat.participants.includes(currentUser.phone)) {
+                        renderChatListItem(chatId, chat);
+                    }
+                }
+            });
+        }
+
+        function renderChatListItem(chatId, chat) {
+            let chatName = chat.type === 'group' ? chat.name : 'Неизвестный';
+            let chatAvatar = chat.type === 'group' ? '👥' : '👤';
+
+            // Если это личный чат, находим имя и аватар друга
+            if (chat.type === 'direct') {
+                const friendPhone = chat.participants.find(p => p !== currentUser.phone);
+                if (friendPhone && usersCache[friendPhone]) {
+                    chatName = usersCache[friendPhone].nickname;
+                    chatAvatar = usersCache[friendPhone].emoji;
+                } else {
+                    chatName = '+' + friendPhone;
+                }
+            }
+
+            const div = document.createElement('div');
+            div.className = `p-3 flex items-center gap-3 cursor-pointer rounded hover:bg-gray-700 transition ${currentChatId === chatId ? 'bg-gray-700' : ''}`;
+            div.onclick = () => openChat(chatId, chatName, chatAvatar, chat);
+            
+            div.innerHTML = `
+                <div class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-xl">${chatAvatar}</div>
+                <div class="flex-1 overflow-hidden">
+                    <div class="font-bold truncate">${chatName}</div>
+                    <div class="text-xs text-gray-400 truncate">${chat.type === 'group' ? 'Группа' : 'Личное'}</div>
+                </div>
+            `;
+            document.getElementById('chats-list').appendChild(div);
+        }
+
+        /* =========================================
+           6. ОТКРЫТИЕ И СООБЩЕНИЯ
+           ========================================= */
+        function openChat(chatId, chatName, chatAvatar, chatData) {
+            currentChatId = chatId;
+            document.getElementById('chat-header').classList.remove('hidden');
+            document.getElementById('input-area').classList.remove('hidden');
+            
+            document.getElementById('current-chat-name').innerText = chatName;
+            document.getElementById('current-chat-avatar').innerText = chatAvatar;
+            
+            let info = chatData.type === 'group' ? `${chatData.participants.length} участников` : 'Личный чат';
+            document.getElementById('current-chat-info').innerText = info;
+
+            // Выделяем активный чат
+            loadChats(); 
+
+            // Отписываемся от старого чата
+            if(messagesListener) db.ref(messagesListener).off();
+            
+            const msgsArea = document.getElementById('messages-area');
+            msgsArea.innerHTML = '';
+            
+            messagesListener = `chats/${chatId}/messages`;
+            
+            db.ref(messagesListener).on('child_added', snap => {
+                const msg = snap.val();
+                const msgId = snap.key;
+                displayMessage(msgId, msg);
+
+                // Если сообщение не наше и статус "sent", меняем на "read" 🟢
+                if (msg.sender !== currentUser.phone && msg.status === 'sent') {
+                    db.ref(`${messagesListener}/${msgId}`).update({ status: 'read' });
+                }
+            });
+
+            // Слушаем изменения статусов (для 🟡 -> 🟢)
+            db.ref(messagesListener).on('child_changed', snap => {
+                const msg = snap.val();
+                const statusEl = document.getElementById(`status-${snap.key}`);
+                if (statusEl && msg.sender === currentUser.phone) {
+                    statusEl.innerText = msg.status === 'read' ? '🟢' : '🟡';
+                }
+            });
+        }
+
+        function displayMessage(msgId, msg) {
+            const isMine = msg.sender === currentUser.phone;
+            const senderData = usersCache[msg.sender] || { nickname: msg.sender, emoji: '👤' };
+            
+            // Выбор статуса
+            let statusIcon = '🔴'; // По умолчанию (ошибка или летит)
+            if (msg.status === 'sent') statusIcon = '🟡';
+            if (msg.status === 'read') statusIcon = '🟢';
+
+            const div = document.createElement('div');
+            div.className = `flex ${isMine ? 'justify-end' : 'justify-start'}`;
+            
+            div.innerHTML = `
+                <div class="msg-bubble ${isMine ? 'msg-mine' : 'msg-theirs'}">
+                    ${!isMine ? `<div class="text-xs text-gray-400 mb-1">${senderData.emoji} ${senderData.nickname}</div>` : ''}
+                    <div class="text-sm">${msg.text}</div>
+                    <div class="text-[10px] text-gray-500 mt-1 flex justify-end items-center gap-1">
+                        ${new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        ${isMine ? `<span id="status-${msgId}" class="text-[8px]">${statusIcon}</span>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            const area = document.getElementById('messages-area');
+            area.appendChild(div);
+            area.scrollTop = area.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text || !currentChatId) return;
+
+            input.value = '';
+            const msgRef = db.ref(`chats/${currentChatId}/messages`).push();
+            
+            // Создаем сообщение со статусом отправлено (🟡)
+            // Мы не делаем 🔴 долго висящим, т.к. Firebase работает очень быстро, 
+            // 🔴 появится только если пропадет интернет
+            await msgRef.set({
+                sender: currentUser.phone,
+                text: text,
+                timestamp: Date.now(),
+                status: 'sent' 
+            });
+        }
+
+        /* =========================================
+           7. МОДАЛКИ И СОЗДАНИЕ ЧАТОВ
+           ========================================= */
+        function showModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function hideModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        async function createDirectChat() {
+            const phone = document.getElementById('new-chat-phone').value.trim();
+            if(!phone || phone === currentUser.phone) return alert('Неверный номер');
+
+            // Проверяем существует ли юзер
+            const snap = await db.ref('users/' + phone).once('value');
+            if(!snap.exists()) return alert('Пользователь не найден');
+
+            // Создаем уникальный ID чата для двоих (сортируем номера, чтобы ID был одинаковым для обоих)
+            const chatId = [currentUser.phone, phone].sort().join('_');
+            
+            await db.ref('chats/' + chatId).update({
+                type: 'direct',
+                participants: [currentUser.phone, phone]
+            });
+
+            hideModal('new-chat-modal');
+            document.getElementById('new-chat-phone').value = '';
+        }
+
+        // Логика создания группы
+        let selectedForGroup = [];
+
+        function loadUsersForGroup() {
+            selectedForGroup = [];
+            document.getElementById('group-count').innerText = '0';
+            const list = document.getElementById('group-users-list');
+            list.innerHTML = '';
+
+            for (let phone in usersCache) {
+                if (phone === currentUser.phone) continue; // Себя не показываем
+                const user = usersCache[phone];
+                
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-gray-800 p-2 rounded';
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span>${user.emoji}</span>
+                        <span>${user.nickname}</span>
+                    </div>
+                    <input type="checkbox" class="group-checkbox w-5 h-5 accent" value="${phone}" onchange="handleGroupCheck(this)">
+                `;
+                list.appendChild(div);
+            }
+        }
+
+        function handleGroupCheck(cb) {
+            if (cb.checked) {
+                if (selectedForGroup.length >= 19) {
+                    cb.checked = false;
+                    alert('Максимум 20 участников (включая вас)');
+                    return;
+                }
+                selectedForGroup.push(cb.value);
+            } else {
+                selectedForGroup = selectedForGroup.filter(p => p !== cb.value);
+            }
+            document.getElementById('group-count').innerText = selectedForGroup.length;
+        }
+
+        async function createGroupChat() {
+            const name = document.getElementById('new-group-name').value.trim();
+            if (!name) return alert('Введите название группы');
+            if (selectedForGroup.length === 0) return alert('Выберите хотя бы одного участника');
+
+            const chatId = 'group_' + Date.now();
+            const participants = [currentUser.phone, ...selectedForGroup];
+
+            await db.ref('chats/' + chatId).set({
+                type: 'group',
+                name: name,
+                participants: participants
+            });
+
+            hideModal('new-group-modal');
+            document.getElementById('new-group-name').value = '';
+        }
+    </script>
+</body>
+</html>
